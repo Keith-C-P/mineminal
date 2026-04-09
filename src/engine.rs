@@ -1,6 +1,8 @@
 use crate::gameboard::{Cell, CellContent, GameBoard};
 use crate::renderer::{GameBoardWidget, PeekWidget};
+use crate::utils::Utils;
 
+use log::debug;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
@@ -34,7 +36,7 @@ pub struct Engine {
 impl Engine {
     pub fn new(width: usize, height: usize) -> Self {
         let board = GameBoard::new(height, width)
-            .scatter_bombs(width * height / 4)
+            .scatter_bombs(width * height / 8)
             .fill_info();
 
         Engine {
@@ -45,8 +47,9 @@ impl Engine {
     }
 
     pub fn draw(&self, frame: &mut Frame) {
-        let board_area = GameBoardWidget::center_rect(
-            frame.area(),
+        let root_area = frame.area();
+        let board_area = Utils::center_rect(
+            root_area,
             self.gameboard.cols as u16,
             self.gameboard.rows as u16,
         );
@@ -57,7 +60,7 @@ impl Engine {
         );
 
         if self.peek.is_peeking {
-            frame.render_widget(PeekWidget, self.peek.area);
+            frame.render_widget(PeekWidget::new(root_area, &self.gameboard), self.peek.area);
         }
     }
 
@@ -69,14 +72,20 @@ impl Engine {
         self.reveal_coord = Some(board_coord);
     }
 
-    pub fn end_reveal(&mut self) {
+    pub fn end_reveal(&mut self) -> Signal {
+        let mut signal = Signal::Alive;
         match self.reveal_coord {
-            Some(coord) => {
-                self.reveal_at(coord);
+            Some((x, y)) => {
+                match self.gameboard.board[y][x].content {
+                    CellContent::Bomb => signal = Signal::Kill,
+                    _ => signal = Signal::Alive,
+                }
+                self.reveal_at((x, y));
                 self.reveal_coord = None;
             }
             None => self.reveal_coord = None,
         }
+        signal
     }
 
     pub fn toggle_flag(&mut self, click_x: u16, click_y: u16, frame_area: Rect) {
@@ -91,7 +100,7 @@ impl Engine {
             return;
         };
 
-        let pane = GameBoardWidget::center_rect(
+        let pane = Utils::center_rect(
             frame_area,
             self.gameboard.cols as u16,
             self.gameboard.rows as u16,
@@ -141,7 +150,6 @@ impl Engine {
         if !self.peek.is_peeking {
             return Signal::Alive;
         }
-
         self.peek.is_peeking = false;
 
         Signal::Alive
@@ -159,9 +167,8 @@ impl Engine {
         let click_cell = &mut self.gameboard.board[board_y][board_x];
         if !click_cell.revealed {
             match click_cell.content {
-                CellContent::Bomb => {} //lose
+                CellContent::Bomb => debug!("Kill Signal"), //lose
                 CellContent::Safe(0) => {
-                    click_cell.revealed = true;
                     self.propagate_from((board_x, board_y));
                 }
                 CellContent::Safe(_) => click_cell.revealed = true,
@@ -174,17 +181,17 @@ impl Engine {
             return;
         }
 
-        let source_content = self.gameboard.board[y][x].content;
-
-        match source_content {
+        let source_cell_content = self.gameboard.board[y][x].content;
+        match source_cell_content {
             CellContent::Bomb => return,
             CellContent::Safe(0) => {
                 self.gameboard.board[y][x].revealed = true;
-                for i in -1..=1 {
-                    for j in -1..=1 {
-                        if let (Some(nx), Some(ny)) =
-                            (y.checked_add_signed(i), x.checked_add_signed(j))
-                        {
+                for offset_x in -1..=1 {
+                    for offset_y in -1..=1 {
+                        if let (Some(nx), Some(ny)) = (
+                            x.checked_add_signed(offset_x),
+                            y.checked_add_signed(offset_y),
+                        ) {
                             if nx < self.gameboard.cols && ny < self.gameboard.rows {
                                 self.propagate_from((nx, ny));
                             }
@@ -281,22 +288,13 @@ impl Engine {
         click_y: u16,
         root_area: Rect,
     ) -> Option<(usize, usize)> {
-        let pane = GameBoardWidget::center_rect(
+        Utils::screen_to_board(
+            click_x,
+            click_y,
+            self.gameboard.cols,
+            self.gameboard.rows,
             root_area,
-            self.gameboard.cols as u16,
-            self.gameboard.rows as u16,
-        );
-
-        let min_x = pane.x;
-        let min_y = pane.y;
-        let max_x = pane.x + pane.width;
-        let max_y = pane.y + pane.height;
-
-        if click_x < min_x || click_y < min_y || click_x >= max_x || click_y >= max_y {
-            return None;
-        }
-
-        Some(((click_x - min_x) as usize, (click_y - min_y) as usize))
+        )
     }
 
     pub fn get_board_cell(&self, col: usize, row: usize) -> &Cell {

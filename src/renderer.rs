@@ -1,6 +1,8 @@
 use crate::gameboard::CellContent;
 use crate::gameboard::GameBoard;
-use ratatui::layout::{Constraint, Rect};
+use crate::utils::Utils;
+use log::debug;
+use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::{buffer::Buffer, widgets::Widget};
 
@@ -15,30 +17,6 @@ impl<'a> GameBoardWidget<'a> {
             gameboard: board,
             reveal: reveal_coord,
         }
-    }
-
-    pub fn center_rect(root_area: Rect, width: u16, height: u16) -> Rect {
-        // let vertical = Layout::default()
-        //     .direction(Direction::Vertical)
-        //     .constraints([
-        //         Constraint::Percentage(50),
-        //         Constraint::Length(height),
-        //         Constraint::Percentage(50),
-        //     ])
-        //     .split(root_area);
-
-        // let horizontal = Layout::default()
-        //     .direction(Direction::Horizontal)
-        //     .constraints([
-        //         Constraint::Percentage(50),
-        //         Constraint::Length(width),
-        //         Constraint::Percentage(50),
-        //     ])
-        //     .split(vertical[1]);
-
-        // horizontal[1]
-
-        root_area.centered(Constraint::Length(width), Constraint::Length(height))
     }
 }
 
@@ -91,19 +69,59 @@ impl<'a> Widget for GameBoardWidget<'a> {
     }
 }
 
-pub struct PeekWidget;
+pub struct PeekWidget<'a> {
+    root_area: Rect,
+    gameboard: &'a GameBoard,
+}
 
-impl Widget for PeekWidget {
+impl<'a> Widget for PeekWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
     {
         for y in area.y..(area.y + area.height) {
             for x in area.x..(area.x + area.width) {
-                if buf[(x, y)].symbol() != "▇" {
+                if !self.is_revealed(x, y) && !self.is_flagged(x, y) {
                     buf.set_string(x, y, " ", Style::default().bg(Color::DarkGray));
                 }
             }
+        }
+    }
+}
+
+impl<'a> PeekWidget<'a> {
+    pub fn new(root_area: Rect, board: &'a GameBoard) -> Self {
+        PeekWidget {
+            root_area,
+            gameboard: board,
+        }
+    }
+
+    pub fn is_revealed(&self, click_x: u16, click_y: u16) -> bool {
+        let coords = Utils::screen_to_board(
+            click_x,
+            click_y,
+            self.gameboard.cols,
+            self.gameboard.rows,
+            self.root_area,
+        );
+        match coords {
+            Some((x, y)) => self.gameboard.board[y][x].revealed,
+            None => false,
+        }
+    }
+
+    pub fn is_flagged(&self, click_x: u16, click_y: u16) -> bool {
+        let coords = Utils::screen_to_board(
+            click_x,
+            click_y,
+            self.gameboard.cols,
+            self.gameboard.rows,
+            self.root_area,
+        );
+        match coords {
+            Some((x, y)) => self.gameboard.board[y][x].flagged,
+            None => false,
         }
     }
 }

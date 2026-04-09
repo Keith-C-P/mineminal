@@ -1,3 +1,4 @@
+use core::f32;
 use rand::seq::SliceRandom;
 
 #[derive(Clone, Copy)]
@@ -16,6 +17,7 @@ pub struct GameBoard {
     pub board: Vec<Vec<Cell>>,
     pub rows: usize,
     pub cols: usize,
+    pub difficulty: f32,
 }
 
 impl GameBoard {
@@ -31,11 +33,13 @@ impl GameBoard {
             ];
             rows
         ];
+        let difficulty: f32 = -1.0;
 
         GameBoard {
             board,
             rows: rows,
             cols: cols,
+            difficulty,
         }
     }
 
@@ -99,4 +103,6 @@ impl GameBoard {
         self.board[y][x].revealed = true;
         self
     }
+
+    fn calculate_difficulty() {}
 }
