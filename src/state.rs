@@ -1,18 +1,23 @@
 use crate::engine::Engine;
 use crate::engine::Signal;
-
-use std::cell::RefCell;
+use crate::gameboard::GameBoard;
+use crate::renderer::GameBoardWidget;
+use crate::renderer::LoseWidget;
+use crate::utils::Utils;
 
 use crossterm::event::{
     Event as CEvent, KeyCode, KeyEvent, KeyEventKind, MouseButton, MouseEvent, MouseEventKind,
 };
 use ratatui::Frame;
 use ratatui::layout::Rect;
+use ratatui::widgets::{Block, Borders};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 pub trait State {
-    fn handle_input(&mut self, event: CEvent, root_area: Rect) -> Option<Box<dyn State>>;
+    fn handle_input(&mut self, event: CEvent, root_area: Rect) -> Signal;
     fn render(&self, frame: &mut Frame);
+    fn update(&self, signal: Signal) -> Option<Box<dyn State>>;
 }
 pub struct PlayingState {
     engine: Rc<RefCell<Engine>>,
@@ -25,110 +30,89 @@ impl PlayingState {
 }
 
 impl State for PlayingState {
-    fn handle_input(&mut self, input: CEvent, root_area: Rect) -> Option<Box<dyn State>> {
+    fn handle_input(&mut self, input: CEvent, root_area: Rect) -> Signal {
         match input {
-            CEvent::Mouse(mouse_event) => match mouse_event {
-                MouseEvent {
-                    kind, row, column, ..
-                } => match kind {
-                    MouseEventKind::Down(mouse_button) => match mouse_button {
-                        MouseButton::Left => {
-                            let mut engine_mut = self.engine.borrow_mut();
-                            let Some((board_x, board_y)) =
-                                engine_mut.screen_to_board(column, row, root_area)
-                            else {
-                                return None;
-                            };
-                            let click_cell = engine_mut.get_board_cell(board_x, board_y);
-                            if click_cell.flagged {
-                                return None;
-                            }
-                            if click_cell.revealed {
-                                engine_mut.start_peek(column, row, root_area);
-                            } else {
-                                engine_mut.start_reveal(column, row, root_area);
-                            }
-                            return None;
+            CEvent::Mouse(MouseEvent {
+                kind, row, column, ..
+            }) => {
+                let mut engine = self.engine.borrow_mut();
+
+                let Some((bx, by)) = engine.screen_to_board(column, row, root_area) else {
+                    return Signal::Alive;
+                };
+
+                let cell = engine.get_board_cell(bx, by);
+
+                match kind {
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        if cell.flagged {
+                            return Signal::Alive;
                         }
-                        MouseButton::Right => {
-                            let mut engine_mut = self.engine.borrow_mut();
-                            let Some((board_x, board_y)) =
-                                engine_mut.screen_to_board(column, row, root_area)
-                            else {
-                                return None;
-                            };
-                            let click_cell = engine_mut.get_board_cell(board_x, board_y);
-                            if !click_cell.revealed {
-                                engine_mut.toggle_flag(column, row, root_area);
-                            }
-                            return None;
+                        if cell.revealed {
+                            engine.start_peek(column, row, root_area);
+                        } else {
+                            engine.start_reveal(column, row, root_area);
                         }
-                        _ => return None,
-                    },
-                    MouseEventKind::Up(mouse_button) => match mouse_button {
-                        MouseButton::Left => {
-                            let mut engine_mut = self.engine.borrow_mut();
-                            let Some((board_x, board_y)) =
-                                engine_mut.screen_to_board(column, row, root_area)
-                            else {
-                                return None;
-                            };
-                            let click_cell = engine_mut.get_board_cell(board_x, board_y);
-                            let mut result;
-                            if click_cell.revealed {
-                                result = engine_mut.end_peek();
-                            } else {
-                                result = engine_mut.end_reveal();
-                            }
-                            match result {
-                                Signal::Kill => return Some(Box::new(LoseState::new())),
-                                _ => return None,
-                            }
-                            return None;
+                    }
+                    MouseEventKind::Down(MouseButton::Right) => {
+                        if !cell.revealed {
+                            engine.toggle_flag(column, row, root_area);
                         }
-                        _ => return None,
-                    },
-                    MouseEventKind::Drag(mouse_button) => match mouse_button {
-                        MouseButton::Left => {
-                            let mut engine_mut = self.engine.borrow_mut();
-                            engine_mut.cancel_peek();
-                            engine_mut.end_reveal();
-                            return None;
-                        }
-                        _ => return None,
-                    },
-                    _ => return None,
-                },
-            },
-            CEvent::Key(key) => match key {
-                KeyEvent {
-                    code: KeyCode::Esc,
-                    kind: KeyEventKind::Press,
-                    ..
-                } => {
-                    panic!("Quit")
+                    }
+                    MouseEventKind::Up(MouseButton::Left) => {
+                        let result = if cell.revealed {
+                            engine.end_peek()
+                        } else {
+                            engine.end_reveal()
+                        };
+                        return result;
+                    }
+                    MouseEventKind::Drag(MouseButton::Left) => {
+                        engine.cancel_peek();
+                        engine.end_reveal();
+                        return Signal::Alive;
+                    }
+                    _ => {}
                 }
-                _ => todo!(),
-            },
-            _ => todo!(),
-        };
+                return Signal::Alive;
+            }
+            CEvent::Key(KeyEvent {
+                code: KeyCode::Esc,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                panic!("Quit")
+            }
+            _ => {}
+        }
+        Signal::Alive
     }
 
     fn render(&self, frame: &mut Frame) {
         self.engine.borrow().draw(frame);
     }
+
+    fn update(&self, signal: Signal) -> Option<Box<dyn State>> {
+        match signal {
+            Signal::Kill => Some(Box::new(LoseState::new(Rc::clone(&self.engine)))),
+            Signal::Alive => None,
+            _ => None,
+        }
+    }
 }
 
-pub struct LoseState;
+pub struct LoseState {
+    engine: Rc<RefCell<Engine>>,
+}
 
 impl LoseState {
-    pub fn new() -> Self {
-        LoseState
+    pub fn new(engine: Rc<RefCell<Engine>>) -> Self {
+        LoseState { engine }
     }
 }
 
 impl State for LoseState {
-    fn handle_input(&mut self, event: CEvent, _: Rect) -> Option<Box<dyn State>> {
+    fn handle_input(&mut self, event: CEvent, _: Rect) -> Signal {
         match event {
             CEvent::Key(key) => match key {
                 KeyEvent {
@@ -138,11 +122,28 @@ impl State for LoseState {
                 } => {
                     panic!("Quit")
                 }
-                _ => todo!(),
+                _ => Signal::Alive,
             },
-            _ => todo!(),
+            _ => Signal::Alive,
         }
+    }
+
+    fn render(&self, frame: &mut Frame) {
+        let engine = self.engine.borrow();
+        let (width, height) = engine.game_info.dimensions();
+
+        let mut area = Utils::center_right(frame.area(), (width + 2) as u16, (height + 2) as u16);
+        area.x -= 1; // FIXME accounting for right edge which will overflow
+
+        let block = Block::default().borders(Borders::ALL).title("You Lose :( ");
+        let inner = block.inner(area);
+
+        frame.render_widget(block, area);
+        frame.render_widget(LoseWidget::new(&engine.game_info), inner);
+        engine.draw(frame);
+    }
+
+    fn update(&self, signal: Signal) -> Option<Box<dyn State>> {
         None
     }
-    fn render(&self, frame: &mut Frame) {}
 }

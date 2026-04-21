@@ -1,9 +1,12 @@
+use core::time::Duration;
+
+use crate::engine::GameInfo;
 use crate::gameboard::CellContent;
 use crate::gameboard::GameBoard;
 use crate::utils::Utils;
-use log::debug;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
+use ratatui::widgets::Paragraph;
 use ratatui::{buffer::Buffer, widgets::Widget};
 
 pub struct GameBoardWidget<'a> {
@@ -123,5 +126,25 @@ impl<'a> PeekWidget<'a> {
             Some((x, y)) => self.gameboard.board[y][x].flagged,
             None => false,
         }
+    }
+}
+
+pub struct LoseWidget<'a> {
+    game_info: &'a GameInfo,
+}
+
+impl<'a> Widget for LoseWidget<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer)
+    where
+        Self: Sized,
+    {
+        let game_info = format!("{}", self.game_info);
+        Paragraph::new(game_info).render(area, buf);
+    }
+}
+
+impl<'a> LoseWidget<'a> {
+    pub fn new(game_info: &'a GameInfo) -> Self {
+        LoseWidget { game_info }
     }
 }

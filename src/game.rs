@@ -34,7 +34,8 @@ impl Game {
 
     pub fn handle_input(&mut self, event: CEvent, root_area: Rect) {
         if let Some(state) = self.state.as_mut() {
-            if let Some(next_state) = state.handle_input(event, root_area) {
+            let signal = state.handle_input(event, root_area);
+            if let Some(next_state) = state.update(signal) {
                 self.state = Some(next_state);
             }
         }

@@ -1,6 +1,6 @@
 pub struct Utils;
 
-use ratatui::layout::{Constraint, Rect};
+use ratatui::layout::{Constraint, Flex, Layout, Rect};
 
 impl Utils {
     pub fn screen_to_board(
@@ -10,7 +10,7 @@ impl Utils {
         board_height: usize,
         root_area: Rect,
     ) -> Option<(usize, usize)> {
-        let pane = Utils::center_rect(root_area, board_width as u16, board_height as u16);
+        let pane = Utils::center(root_area, board_width as u16, board_height as u16);
 
         let min_x = pane.x;
         let min_y = pane.y;
@@ -24,7 +24,19 @@ impl Utils {
         Some(((click_x - min_x) as usize, (click_y - min_y) as usize))
     }
 
-    pub fn center_rect(root_area: Rect, width: u16, height: u16) -> Rect {
+    pub fn center(root_area: Rect, width: u16, height: u16) -> Rect {
         root_area.centered(Constraint::Length(width), Constraint::Length(height))
+    }
+
+    pub fn center_right(root: Rect, width: u16, height: u16) -> Rect {
+        let [h] = Layout::horizontal([Constraint::Length(width)])
+            .flex(Flex::End)
+            .areas(root);
+
+        let [v] = Layout::vertical([Constraint::Length(height)])
+            .flex(Flex::Center)
+            .areas(h);
+
+        v
     }
 }
