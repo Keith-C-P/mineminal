@@ -1,6 +1,5 @@
-use core::time::Duration;
-
 use crate::engine::GameInfo;
+use crate::gameboard::Cell;
 use crate::gameboard::CellContent;
 use crate::gameboard::GameBoard;
 use crate::utils::Utils;
@@ -36,10 +35,10 @@ impl<'a> Widget for GameBoardWidget<'a> {
                     ("▇", Style::default().bg(Color::DarkGray))
                 } else {
                     match cell.content {
-                        CellContent::Bomb => ("💣", Style::default().bg(Color::DarkGray)),
+                        CellContent::Bomb => ("*", Style::default().bg(Color::DarkGray)),
                         CellContent::Safe(n) => {
                             let text = match n {
-                                // add colours
+                                //TODO add colours
                                 0 => " ",
                                 1 => "1",
                                 2 => "2",
@@ -129,11 +128,17 @@ impl<'a> PeekWidget<'a> {
     }
 }
 
-pub struct LoseWidget<'a> {
+pub struct LoseInfoWidget<'a> {
     game_info: &'a GameInfo,
 }
 
-impl<'a> Widget for LoseWidget<'a> {
+impl<'a> LoseInfoWidget<'a> {
+    pub fn new(game_info: &'a GameInfo) -> Self {
+        LoseInfoWidget { game_info }
+    }
+}
+
+impl<'a> Widget for LoseInfoWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
@@ -143,8 +148,59 @@ impl<'a> Widget for LoseWidget<'a> {
     }
 }
 
-impl<'a> LoseWidget<'a> {
-    pub fn new(game_info: &'a GameInfo) -> Self {
-        LoseWidget { game_info }
+pub struct LoseBoardWidget<'a> {
+    gameboard: &'a GameBoard,
+    killed_by: (usize, usize),
+}
+
+impl<'a> LoseBoardWidget<'a> {
+    pub fn new(gameboard: &'a GameBoard, killed_by: (usize, usize)) -> Self {
+        Self {
+            gameboard,
+            killed_by,
+        }
+    }
+}
+
+impl<'a> Widget for LoseBoardWidget<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer)
+    where
+        Self: Sized,
+    {
+        for (y, row) in self.gameboard.board.iter().enumerate() {
+            for (x, cell) in row.iter().enumerate() {
+                //TODO implement colors and killed by
+                let (symbol, style) = match cell.content {
+                    CellContent::Bomb => ("*", Style::default().bg(Color::DarkGray)),
+                    CellContent::Safe(_) => {
+                        let text = match cell {
+                            Cell { flagged: true, .. } => "F",
+                            Cell {
+                                revealed: false, ..
+                            } => "▇",
+                            Cell { content, .. } => match content {
+                                CellContent::Safe(number) => match number {
+                                    0 => " ",
+                                    1 => "1",
+                                    2 => "2",
+                                    3 => "3",
+                                    4 => "4",
+                                    5 => "5",
+                                    6 => "6",
+                                    7 => "7",
+                                    8 => "8",
+                                    _ => "?",
+                                },
+                                _ => "*",
+                            },
+                        };
+                        (text, Style::default().bg(Color::DarkGray))
+                    }
+                };
+                let draw_x = area.x + x as u16;
+                let draw_y = area.y + y as u16;
+                buf.set_string(draw_x, draw_y, symbol, style);
+            }
+        }
     }
 }

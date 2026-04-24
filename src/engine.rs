@@ -1,7 +1,6 @@
 use std::fmt::Display;
 use std::time::Duration;
 
-use crate::game::Game;
 use crate::gameboard::{Cell, CellContent, GameBoard};
 use crate::renderer::{GameBoardWidget, PeekWidget};
 use crate::utils::Utils;
@@ -13,6 +12,11 @@ use ratatui::layout::Rect;
 pub enum Signal {
     Alive,
     Kill,
+    Restart,
+    Exit,
+    Win,
+    Pause,
+    Resume,
 }
 
 struct Peek {
@@ -32,7 +36,7 @@ impl Peek {
 }
 
 pub struct GameInfo {
-    threeBV: usize,
+    three_bv: usize,
     time: Duration,
     clicks: usize,
     redundant_clicks: usize,
@@ -42,7 +46,7 @@ impl<'a> Display for GameInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         //TODO: Add Efficiency, Speed
         let time = format!("Time: {:.3}", self.time.as_secs_f64());
-        let difficulty = format!("Difficulty: {}", self.threeBV);
+        let difficulty = format!("3BV: {}", self.three_bv);
         let clicks = format!("Clicks: {}+{}", self.clicks, self.redundant_clicks);
         let info = format!("{}\n{}\n{}\n", time, difficulty, clicks);
         write!(f, "{}", info)
@@ -52,7 +56,7 @@ impl<'a> Display for GameInfo {
 impl GameInfo {
     pub fn new(difficulty: usize) -> Self {
         Self {
-            threeBV: difficulty,
+            three_bv: difficulty,
             time: Duration::new(0, 0),
             clicks: 0,
             redundant_clicks: 0,
@@ -72,11 +76,10 @@ impl GameInfo {
 }
 
 pub struct Engine {
-    gameboard: GameBoard,
+    pub gameboard: GameBoard,
     peek: Peek,
     reveal_coord: Option<(usize, usize)>,
     first_click: bool,
-    pub game_info: GameInfo,
 }
 
 impl Engine {
@@ -87,7 +90,6 @@ impl Engine {
             peek: Peek::new(),
             reveal_coord: None,
             first_click: false,
-            game_info: GameInfo::new(0),
         }
     }
 
@@ -112,7 +114,6 @@ impl Engine {
     fn first_click(&mut self, (board_x, board_y): (usize, usize)) {
         self.gameboard.scatter_bombs(40, (board_x, board_y));
         self.gameboard.fill_info();
-        self.game_info.threeBV = self.gameboard.calculate_difficulty();
     }
 
     pub fn start_reveal(&mut self, click_x: u16, click_y: u16, frame_area: Rect) {
@@ -348,13 +349,5 @@ impl Engine {
 
     pub fn get_board_cell(&self, col: usize, row: usize) -> &Cell {
         &self.gameboard.board[row][col]
-    }
-
-    pub fn get_board_info(&self) -> (usize, usize, usize) {
-        (
-            self.gameboard.rows,
-            self.gameboard.cols,
-            self.gameboard.difficulty,
-        )
     }
 }

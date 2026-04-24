@@ -1,8 +1,7 @@
-use crate::engine::Engine;
 use crate::engine::Signal;
-use crate::gameboard::GameBoard;
-use crate::renderer::GameBoardWidget;
-use crate::renderer::LoseWidget;
+use crate::game::GameContext;
+use crate::renderer::LoseBoardWidget;
+use crate::renderer::LoseInfoWidget;
 use crate::utils::Utils;
 
 use crossterm::event::{
@@ -11,31 +10,30 @@ use crossterm::event::{
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders};
-use std::cell::RefCell;
-use std::rc::Rc;
+
+pub enum Transition {
+    ToPlaying,
+    ToPause,
+    Resume,
+    ToLose,
+    ToWin,
+    Restart,
+}
 
 pub trait State {
-    fn handle_input(&mut self, event: CEvent, root_area: Rect) -> Signal;
-    fn render(&self, frame: &mut Frame);
-    fn update(&self, signal: Signal) -> Option<Box<dyn State>>;
+    fn handle_input(&mut self, ctx: &mut GameContext, event: CEvent, root_area: Rect) -> Signal;
+    fn render(&self, ctx: &GameContext, frame: &mut Frame);
+    fn update(&self, ctx: &mut GameContext, signal: Signal) -> Option<Transition>;
 }
-pub struct PlayingState {
-    engine: Rc<RefCell<Engine>>,
-}
-
-impl PlayingState {
-    pub fn new(engine: Rc<RefCell<Engine>>) -> Self {
-        PlayingState { engine }
-    }
-}
+pub struct PlayingState;
 
 impl State for PlayingState {
-    fn handle_input(&mut self, input: CEvent, root_area: Rect) -> Signal {
+    fn handle_input(&mut self, ctx: &mut GameContext, input: CEvent, root_area: Rect) -> Signal {
         match input {
             CEvent::Mouse(MouseEvent {
                 kind, row, column, ..
             }) => {
-                let mut engine = self.engine.borrow_mut();
+                let engine = &mut ctx.engine;
 
                 let Some((bx, by)) = engine.screen_to_board(column, row, root_area) else {
                     return Signal::Alive;
@@ -80,70 +78,83 @@ impl State for PlayingState {
                 code: KeyCode::Esc,
                 kind: KeyEventKind::Press,
                 ..
-            }) => {
-                panic!("Quit")
-            }
+            }) => panic!("Quit"),
+            CEvent::Key(KeyEvent {
+                code: KeyCode::Char(' '),
+                kind: KeyEventKind::Press,
+                ..
+            }) => return Signal::Restart,
             _ => {}
         }
         Signal::Alive
     }
 
-    fn render(&self, frame: &mut Frame) {
-        self.engine.borrow().draw(frame);
+    fn render(&self, ctx: &GameContext, frame: &mut Frame) {
+        ctx.engine.draw(frame);
     }
 
-    fn update(&self, signal: Signal) -> Option<Box<dyn State>> {
+    fn update(&self, _ctx: &mut GameContext, signal: Signal) -> Option<Transition> {
         match signal {
-            Signal::Kill => Some(Box::new(LoseState::new(Rc::clone(&self.engine)))),
+            Signal::Kill => Some(Transition::ToLose),
+            Signal::Restart => Some(Transition::Restart),
             Signal::Alive => None,
             _ => None,
         }
     }
 }
 
-pub struct LoseState {
-    engine: Rc<RefCell<Engine>>,
-}
-
-impl LoseState {
-    pub fn new(engine: Rc<RefCell<Engine>>) -> Self {
-        LoseState { engine }
-    }
-}
+pub struct LoseState;
 
 impl State for LoseState {
-    fn handle_input(&mut self, event: CEvent, _: Rect) -> Signal {
+    fn handle_input(&mut self, _ctx: &mut GameContext, event: CEvent, _: Rect) -> Signal {
         match event {
             CEvent::Key(key) => match key {
                 KeyEvent {
                     code: KeyCode::Esc,
                     kind: KeyEventKind::Press,
                     ..
-                } => {
-                    panic!("Quit")
-                }
+                } => Signal::Exit,
+                KeyEvent {
+                    code: KeyCode::Char(' '),
+                    kind: KeyEventKind::Press,
+                    ..
+                } => Signal::Restart,
                 _ => Signal::Alive,
             },
             _ => Signal::Alive,
         }
     }
 
-    fn render(&self, frame: &mut Frame) {
-        let engine = self.engine.borrow();
-        let (width, height) = engine.game_info.dimensions();
+    fn render(&self, ctx: &GameContext, frame: &mut Frame) {
+        let engine = &ctx.engine;
+        let (width, height) = ctx.game_info.dimensions();
+        let root_area = frame.area();
 
-        let mut area = Utils::center_right(frame.area(), (width + 2) as u16, (height + 2) as u16);
-        area.x -= 1; // FIXME accounting for right edge which will overflow
+        let area = Utils::center_right(root_area, (width + 2) as u16, (height + 2) as u16);
+        // area.x -= 1; // FIXME accounting for right edge which will overflow
 
         let block = Block::default().borders(Borders::ALL).title("You Lose :( ");
         let inner = block.inner(area);
 
+        let board_area = Utils::center(
+            root_area,
+            engine.gameboard.cols as u16,
+            engine.gameboard.rows as u16,
+        );
+
         frame.render_widget(block, area);
-        frame.render_widget(LoseWidget::new(&engine.game_info), inner);
-        engine.draw(frame);
+        frame.render_widget(LoseInfoWidget::new(&ctx.game_info), inner);
+        frame.render_widget(
+            LoseBoardWidget::new(&ctx.engine.gameboard, (0, 0)),
+            board_area,
+        );
     }
 
-    fn update(&self, signal: Signal) -> Option<Box<dyn State>> {
-        None
+    fn update(&self, _ctx: &mut GameContext, signal: Signal) -> Option<Transition> {
+        match signal {
+            Signal::Exit => todo!("Exit"),
+            Signal::Restart => Some(Transition::Restart),
+            _ => None,
+        }
     }
 }
