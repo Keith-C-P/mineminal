@@ -17,7 +17,6 @@ pub struct GameBoard {
     pub board: Vec<Vec<Cell>>,
     pub rows: usize,
     pub cols: usize,
-    pub difficulty: usize,
 }
 
 impl GameBoard {
@@ -33,13 +32,11 @@ impl GameBoard {
             ];
             rows
         ];
-        let difficulty = 0;
 
         GameBoard {
             board,
             rows: rows,
             cols: cols,
-            difficulty,
         }
     }
 
@@ -106,14 +103,14 @@ impl GameBoard {
                 }
                 let cell = self.board[y][x].content;
                 match cell {
-                    CellContent::Safe(0) => self.flood_fill(&mut visited, (y, x)),
-                    _ => visited[y][x] = true,
+                    CellContent::Safe(0) => self.flood_fill(&mut visited, (x, y)),
+                    CellContent::Safe(_) => visited[y][x] = true,
+                    CellContent::Bomb => continue, // Don't count bombs in 3BV
                 }
                 difficulty += 1;
             }
         }
         info!("3BV: {difficulty}");
-        self.difficulty = difficulty;
         difficulty
     }
 
@@ -158,5 +155,58 @@ impl GameBoard {
     pub fn toggle_flag_at(&mut self, (board_x, board_y): (usize, usize)) {
         let flag_cell = &mut self.board[board_y][board_x];
         flag_cell.flagged = !flag_cell.flagged;
+    }
+
+    pub fn get_peek_area(&self, board_coords: (usize, usize)) -> (usize, usize, usize, usize) {
+        let (board_x, board_y) = board_coords;
+        let origin_x = board_x.checked_add_signed(-1).unwrap_or(0);
+        let origin_y = board_y.checked_add_signed(-1).unwrap_or(0);
+        let width = if board_x + 1 >= self.cols {
+            board_x
+        } else {
+            board_x + 1
+        };
+        let height = if board_y + 1 >= self.rows {
+            board_y
+        } else {
+            board_y + 1
+        };
+
+        (origin_x, origin_y, width, height)
+    }
+
+    pub fn count_surrounding_flags(&self, board_coords: (usize, usize)) -> u8 {
+        let (origin_x, origin_y, width, height) = self.get_peek_area(board_coords);
+        let mut flag_count = 0;
+
+        for y in origin_y..=height {
+            for x in origin_x..=width {
+                if self.board[y][x].flagged {
+                    flag_count += 1;
+                }
+            }
+        }
+        assert!(flag_count <= 8);
+
+        flag_count
+    }
+
+    pub fn flags_match(&self, board_coords: (usize, usize)) -> bool {
+        let (origin_x, origin_y, width, height) = self.get_peek_area(board_coords);
+
+        for y in origin_y..height {
+            for x in origin_x..width {
+                let is_flagged = self.board[y][x].flagged;
+                let is_bomb = match self.board[y][x].content {
+                    CellContent::Bomb => true,
+                    _ => false,
+                };
+                if is_flagged && !is_bomb {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }

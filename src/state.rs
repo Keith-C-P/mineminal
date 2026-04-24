@@ -1,7 +1,8 @@
 use crate::engine::Signal;
 use crate::game::GameContext;
+use crate::renderer::GameBoardWidget;
+use crate::renderer::InfoWidget;
 use crate::renderer::LoseBoardWidget;
-use crate::renderer::LoseInfoWidget;
 use crate::utils::Utils;
 
 use crossterm::event::{
@@ -23,7 +24,7 @@ pub enum Transition {
 pub trait State {
     fn handle_input(&mut self, ctx: &mut GameContext, event: CEvent, root_area: Rect) -> Signal;
     fn render(&self, ctx: &GameContext, frame: &mut Frame);
-    fn update(&self, ctx: &mut GameContext, signal: Signal) -> Option<Transition>;
+    fn update(&self, signal: Signal) -> Option<Transition>;
 }
 pub struct PlayingState;
 
@@ -93,7 +94,7 @@ impl State for PlayingState {
         ctx.engine.draw(frame);
     }
 
-    fn update(&self, _ctx: &mut GameContext, signal: Signal) -> Option<Transition> {
+    fn update(&self, signal: Signal) -> Option<Transition> {
         match signal {
             Signal::Kill => Some(Transition::ToLose),
             Signal::Restart => Some(Transition::Restart),
@@ -127,7 +128,7 @@ impl State for LoseState {
 
     fn render(&self, ctx: &GameContext, frame: &mut Frame) {
         let engine = &ctx.engine;
-        let (width, height) = ctx.game_info.dimensions();
+        let (width, height) = ctx.engine.game_info.dimensions();
         let root_area = frame.area();
 
         let area = Utils::center_right(root_area, (width + 2) as u16, (height + 2) as u16);
@@ -143,14 +144,70 @@ impl State for LoseState {
         );
 
         frame.render_widget(block, area);
-        frame.render_widget(LoseInfoWidget::new(&ctx.game_info), inner);
+        frame.render_widget(InfoWidget::new(&ctx.engine.game_info), inner);
         frame.render_widget(
             LoseBoardWidget::new(&ctx.engine.gameboard, (0, 0)),
             board_area,
         );
     }
 
-    fn update(&self, _ctx: &mut GameContext, signal: Signal) -> Option<Transition> {
+    fn update(&self, signal: Signal) -> Option<Transition> {
+        match signal {
+            Signal::Exit => todo!("Exit"),
+            Signal::Restart => Some(Transition::Restart),
+            _ => None,
+        }
+    }
+}
+
+pub struct WinState;
+
+impl State for WinState {
+    fn handle_input(&mut self, _ctx: &mut GameContext, event: CEvent, _root_area: Rect) -> Signal {
+        match event {
+            CEvent::Key(key) => match key {
+                KeyEvent {
+                    code: KeyCode::Esc,
+                    kind: KeyEventKind::Press,
+                    ..
+                } => Signal::Exit,
+                KeyEvent {
+                    code: KeyCode::Char(' '),
+                    kind: KeyEventKind::Press,
+                    ..
+                } => Signal::Restart,
+                _ => Signal::Alive,
+            },
+            _ => Signal::Alive,
+        }
+    }
+
+    fn render(&self, ctx: &GameContext, frame: &mut Frame) {
+        let engine = &ctx.engine;
+        let (width, height) = ctx.engine.game_info.dimensions();
+        let root_area = frame.area();
+
+        let area = Utils::center_right(root_area, (width + 2) as u16, (height + 2) as u16);
+        // area.x -= 1; // FIXME accounting for right edge which will overflow
+
+        let block = Block::default().borders(Borders::ALL).title("You Win :) ");
+        let inner = block.inner(area);
+
+        let board_area = Utils::center(
+            root_area,
+            engine.gameboard.cols as u16,
+            engine.gameboard.rows as u16,
+        );
+
+        frame.render_widget(block, area);
+        frame.render_widget(InfoWidget::new(&ctx.engine.game_info), inner);
+        frame.render_widget(
+            GameBoardWidget::new(&ctx.engine.gameboard, None),
+            board_area,
+        );
+    }
+
+    fn update(&self, signal: Signal) -> Option<Transition> {
         match signal {
             Signal::Exit => todo!("Exit"),
             Signal::Restart => Some(Transition::Restart),

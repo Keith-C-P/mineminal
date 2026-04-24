@@ -128,17 +128,17 @@ impl<'a> PeekWidget<'a> {
     }
 }
 
-pub struct LoseInfoWidget<'a> {
+pub struct InfoWidget<'a> {
     game_info: &'a GameInfo,
 }
 
-impl<'a> LoseInfoWidget<'a> {
+impl<'a> InfoWidget<'a> {
     pub fn new(game_info: &'a GameInfo) -> Self {
-        LoseInfoWidget { game_info }
+        InfoWidget { game_info }
     }
 }
 
-impl<'a> Widget for LoseInfoWidget<'a> {
+impl<'a> Widget for InfoWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
@@ -170,29 +170,30 @@ impl<'a> Widget for LoseBoardWidget<'a> {
         for (y, row) in self.gameboard.board.iter().enumerate() {
             for (x, cell) in row.iter().enumerate() {
                 //TODO implement colors and killed by
-                let (symbol, style) = match cell.content {
-                    CellContent::Bomb => ("*", Style::default().bg(Color::DarkGray)),
-                    CellContent::Safe(_) => {
-                        let text = match cell {
-                            Cell { flagged: true, .. } => "F",
-                            Cell {
-                                revealed: false, ..
-                            } => "▇",
-                            Cell { content, .. } => match content {
-                                CellContent::Safe(number) => match number {
-                                    0 => " ",
-                                    1 => "1",
-                                    2 => "2",
-                                    3 => "3",
-                                    4 => "4",
-                                    5 => "5",
-                                    6 => "6",
-                                    7 => "7",
-                                    8 => "8",
-                                    _ => "?",
-                                },
-                                _ => "*",
-                            },
+                let (symbol, style) = match cell {
+                    Cell { flagged: true, .. } => ("F", Style::default().bg(Color::DarkGray)),
+                    Cell {
+                        content: CellContent::Bomb,
+                        ..
+                    } => ("*", Style::default().bg(Color::DarkGray)),
+                    Cell {
+                        revealed: false, ..
+                    } => ("▇", Style::default().bg(Color::DarkGray)),
+                    Cell {
+                        content: CellContent::Safe(number),
+                        ..
+                    } => {
+                        let text = match number {
+                            0 => " ",
+                            1 => "1",
+                            2 => "2",
+                            3 => "3",
+                            4 => "4",
+                            5 => "5",
+                            6 => "6",
+                            7 => "7",
+                            8 => "8",
+                            _ => "?",
                         };
                         (text, Style::default().bg(Color::DarkGray))
                     }

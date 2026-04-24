@@ -3,6 +3,7 @@ mod game;
 mod gameboard;
 mod renderer;
 mod state;
+mod timer;
 mod utils;
 
 use game::Game;

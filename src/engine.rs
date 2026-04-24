@@ -1,8 +1,8 @@
 use std::fmt::Display;
-use std::time::Duration;
 
 use crate::gameboard::{Cell, CellContent, GameBoard};
 use crate::renderer::{GameBoardWidget, PeekWidget};
+use crate::timer::Timer;
 use crate::utils::Utils;
 
 use log::debug;
@@ -36,8 +36,8 @@ impl Peek {
 }
 
 pub struct GameInfo {
-    three_bv: usize,
-    time: Duration,
+    pub three_bv: usize,
+    pub time: Timer,
     clicks: usize,
     redundant_clicks: usize,
 }
@@ -45,7 +45,7 @@ pub struct GameInfo {
 impl<'a> Display for GameInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         //TODO: Add Efficiency, Speed
-        let time = format!("Time: {:.3}", self.time.as_secs_f64());
+        let time = format!("Time: {:.3}s", self.time.elapsed().as_secs_f64());
         let difficulty = format!("3BV: {}", self.three_bv);
         let clicks = format!("Clicks: {}+{}", self.clicks, self.redundant_clicks);
         let info = format!("{}\n{}\n{}\n", time, difficulty, clicks);
@@ -57,7 +57,7 @@ impl GameInfo {
     pub fn new(difficulty: usize) -> Self {
         Self {
             three_bv: difficulty,
-            time: Duration::new(0, 0),
+            time: Timer::new(),
             clicks: 0,
             redundant_clicks: 0,
         }
@@ -77,6 +77,7 @@ impl GameInfo {
 
 pub struct Engine {
     pub gameboard: GameBoard,
+    pub game_info: GameInfo,
     peek: Peek,
     reveal_coord: Option<(usize, usize)>,
     first_click: bool,
@@ -87,6 +88,7 @@ impl Engine {
         let gameboard = GameBoard::new(height, width);
         Engine {
             gameboard,
+            game_info: GameInfo::new(0),
             peek: Peek::new(),
             reveal_coord: None,
             first_click: false,
@@ -114,6 +116,8 @@ impl Engine {
     fn first_click(&mut self, (board_x, board_y): (usize, usize)) {
         self.gameboard.scatter_bombs(40, (board_x, board_y));
         self.gameboard.fill_info();
+        self.game_info.three_bv = self.gameboard.calculate_difficulty();
+        self.game_info.time.start();
     }
 
     pub fn start_reveal(&mut self, click_x: u16, click_y: u16, frame_area: Rect) {
@@ -189,12 +193,16 @@ impl Engine {
 
         let click_cell = self.gameboard.board[self.peek.board_coord.1][self.peek.board_coord.0];
         if let CellContent::Safe(n) = click_cell.content {
-            if self.count_flags(self.peek.board_coord) != n {
+            if self
+                .gameboard
+                .count_surrounding_flags(self.peek.board_coord)
+                != n
+            {
                 return Signal::Alive;
             }
         }
 
-        if self.flags_match(self.peek.board_coord) {
+        if self.gameboard.flags_match(self.peek.board_coord) {
             self.reveal_neighbors(self.peek.board_coord);
         } else {
             return Signal::Kill;
@@ -203,13 +211,11 @@ impl Engine {
         Signal::Alive
     }
 
-    pub fn cancel_peek(&mut self) -> Signal {
+    pub fn cancel_peek(&mut self) {
         if !self.peek.is_peeking {
-            return Signal::Alive;
+            return;
         }
         self.peek.is_peeking = false;
-
-        Signal::Alive
     }
 
     fn reveal_at(&mut self, (board_x, board_y): (usize, usize)) {
@@ -277,59 +283,6 @@ impl Engine {
                 }
             }
         }
-    }
-
-    pub fn get_peek_area(&self, board_coords: (usize, usize)) -> (usize, usize, usize, usize) {
-        let (board_x, board_y) = board_coords;
-        let origin_x = board_x.checked_add_signed(-1).unwrap_or(0);
-        let origin_y = board_y.checked_add_signed(-1).unwrap_or(0);
-        let width = if board_x + 1 >= self.gameboard.cols {
-            board_x
-        } else {
-            board_x + 1
-        };
-        let height = if board_y + 1 >= self.gameboard.rows {
-            board_y
-        } else {
-            board_y + 1
-        };
-
-        (origin_x, origin_y, width, height)
-    }
-
-    fn count_flags(&self, board_coords: (usize, usize)) -> u8 {
-        let (origin_x, origin_y, width, height) = self.get_peek_area(board_coords);
-        let mut flag_count = 0;
-
-        for y in origin_y..=height {
-            for x in origin_x..=width {
-                if self.gameboard.board[y][x].flagged {
-                    flag_count += 1;
-                }
-            }
-        }
-        assert!(flag_count <= 8);
-
-        flag_count
-    }
-
-    fn flags_match(&self, board_coords: (usize, usize)) -> bool {
-        let (origin_x, origin_y, width, height) = self.get_peek_area(board_coords);
-
-        for y in origin_y..height {
-            for x in origin_x..width {
-                let is_flagged = self.gameboard.board[y][x].flagged;
-                let is_bomb = match self.gameboard.board[y][x].content {
-                    CellContent::Bomb => true,
-                    _ => false,
-                };
-                if is_flagged && !is_bomb {
-                    return false;
-                }
-            }
-        }
-
-        true
     }
 
     pub fn screen_to_board(

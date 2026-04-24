@@ -1,6 +1,5 @@
-use crate::engine::{Engine, GameInfo};
-use crate::state::{LoseState, State};
-use crate::state::{PlayingState, Transition};
+use crate::engine::Engine;
+use crate::state::{LoseState, PlayingState, State, Transition};
 
 use crossterm::event::Event as CEvent;
 use ratatui::Frame;
@@ -8,21 +7,18 @@ use ratatui::layout::Rect;
 
 pub struct GameContext {
     pub engine: Engine,
-    pub game_info: GameInfo,
 }
 
 impl GameContext {
     pub fn new() -> Self {
         Self {
             engine: Engine::new(16, 16),
-            game_info: GameInfo::new(0),
         }
     }
 
     pub fn with_size(width: usize, height: usize) -> Self {
         Self {
             engine: Engine::new(width, height),
-            game_info: GameInfo::new(0),
         }
     }
 }
@@ -55,7 +51,8 @@ impl Game {
         if let Some(state) = self.state.as_mut() {
             let signal = state.handle_input(&mut self.ctx.as_mut().unwrap(), event, root_area);
 
-            if let Some(transition) = state.update(&mut self.ctx.as_mut().unwrap(), signal) {
+            if let Some(transition) = state.update(signal) {
+                self.ctx.as_mut().unwrap().engine.game_info.time.pause();
                 match transition {
                     Transition::ToPlaying => self.state = Some(Box::new(PlayingState)),
                     Transition::ToPause => todo!("Not Implemented Pause"),
