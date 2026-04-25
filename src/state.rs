@@ -1,13 +1,12 @@
 use crate::engine::Signal;
 use crate::game::GameContext;
-use crate::renderer::GameBoardWidget;
-use crate::renderer::InfoWidget;
-use crate::renderer::LoseBoardWidget;
+use crate::renderer::{GameBoardWidget, InfoWidget, LoseBoardWidget, Three7SegmentWidget};
 use crate::utils::Utils;
 
 use crossterm::event::{
     Event as CEvent, KeyCode, KeyEvent, KeyEventKind, MouseButton, MouseEvent, MouseEventKind,
 };
+use log::debug;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders};
@@ -36,12 +35,15 @@ impl State for PlayingState {
             }) => {
                 let engine = &mut ctx.engine;
 
+                let total_revealed = engine.gameboard.count_revealed_cells();
                 let Some((bx, by)) = engine.screen_to_board(column, row, root_area) else {
+                    debug!("Revealed {} cells ({} total)", 0, total_revealed);
                     return Signal::Alive;
                 };
 
-                let cell = engine.get_board_cell(bx, by);
+                let cell = engine.gameboard.board[by][bx];
 
+                debug!("Revealed {} cells ({} total)", 0, total_revealed);
                 match kind {
                     MouseEventKind::Down(MouseButton::Left) => {
                         if cell.flagged {
@@ -92,12 +94,26 @@ impl State for PlayingState {
 
     fn render(&self, ctx: &GameContext, frame: &mut Frame) {
         ctx.engine.draw(frame);
+        let root_area = frame.area();
+        let bomb_widget_area = Utils::top_left(root_area, 9 + 2, 3 + 2);
+
+        let bomb_block = Block::default().borders(Borders::ALL);
+        let bomb_inner = bomb_block.inner(bomb_widget_area);
+
+        frame.render_widget(bomb_block, bomb_widget_area);
+        frame.render_widget(
+            Three7SegmentWidget::new(
+                ctx.engine.gameboard.num_bombs as isize - ctx.engine.gameboard.num_flags as isize,
+            ),
+            bomb_inner,
+        );
     }
 
     fn update(&self, signal: Signal) -> Option<Transition> {
         match signal {
             Signal::Kill => Some(Transition::ToLose),
             Signal::Restart => Some(Transition::Restart),
+            Signal::Win => Some(Transition::ToWin),
             Signal::Alive => None,
             _ => None,
         }
@@ -159,7 +175,6 @@ impl State for LoseState {
         }
     }
 }
-
 pub struct WinState;
 
 impl State for WinState {
@@ -188,7 +203,6 @@ impl State for WinState {
         let root_area = frame.area();
 
         let area = Utils::center_right(root_area, (width + 2) as u16, (height + 2) as u16);
-        // area.x -= 1; // FIXME accounting for right edge which will overflow
 
         let block = Block::default().borders(Borders::ALL).title("You Win :) ");
         let inner = block.inner(area);

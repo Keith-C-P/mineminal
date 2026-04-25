@@ -3,6 +3,7 @@ use crate::gameboard::Cell;
 use crate::gameboard::CellContent;
 use crate::gameboard::GameBoard;
 use crate::utils::Utils;
+
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::Paragraph;
@@ -203,5 +204,25 @@ impl<'a> Widget for LoseBoardWidget<'a> {
                 buf.set_string(draw_x, draw_y, symbol, style);
             }
         }
+    }
+}
+
+pub struct Three7SegmentWidget {
+    number: isize,
+}
+
+impl Three7SegmentWidget {
+    pub fn new(number: isize) -> Self {
+        Self { number }
+    }
+}
+
+impl Widget for Three7SegmentWidget {
+    fn render(self, area: Rect, buf: &mut Buffer)
+    where
+        Self: Sized,
+    {
+        let text = Utils::to_big_text(self.number);
+        Paragraph::new(text).render(area, buf);
     }
 }

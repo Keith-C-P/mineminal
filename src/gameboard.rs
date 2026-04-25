@@ -17,6 +17,8 @@ pub struct GameBoard {
     pub board: Vec<Vec<Cell>>,
     pub rows: usize,
     pub cols: usize,
+    pub num_bombs: usize,
+    pub num_flags: usize,
 }
 
 impl GameBoard {
@@ -37,6 +39,8 @@ impl GameBoard {
             board,
             rows: rows,
             cols: cols,
+            num_bombs: 0,
+            num_flags: 0,
         }
     }
 
@@ -45,10 +49,12 @@ impl GameBoard {
         assert!(num_bombs <= total, "Too many bombs");
 
         let origin = origin_y * self.cols + origin_x;
-
         let mut positions: Vec<usize> = (0..total).collect();
-        positions[total - 1] = positions[origin];
-        positions[origin] = positions[total - 1];
+
+        //XOR Swap
+        positions[origin] = positions[origin] ^ positions[total - 1];
+        positions[total - 1] = positions[origin] ^ positions[total - 1];
+        positions[origin] = positions[origin] ^ positions[total - 1];
 
         positions[..total - 1].shuffle(&mut rand::thread_rng());
         let bomb_positions = &positions[..num_bombs];
@@ -56,6 +62,8 @@ impl GameBoard {
         for &idx in bomb_positions {
             self.board[idx / self.rows][idx % self.cols].content = CellContent::Bomb;
         }
+
+        self.num_bombs = num_bombs;
     }
 
     pub fn fill_info(&mut self) {
@@ -91,6 +99,14 @@ impl GameBoard {
                 self.board[r][c].content = CellContent::Safe(count);
             }
         }
+    }
+
+    pub fn count_revealed_cells(&self) -> usize {
+        self.board
+            .iter()
+            .flatten()
+            .filter(|cell| cell.revealed)
+            .count()
     }
 
     pub fn calculate_difficulty(&mut self) -> usize {
@@ -154,6 +170,10 @@ impl GameBoard {
 
     pub fn toggle_flag_at(&mut self, (board_x, board_y): (usize, usize)) {
         let flag_cell = &mut self.board[board_y][board_x];
+        self.num_flags = self
+            .num_flags
+            .checked_add_signed(if flag_cell.flagged { -1 } else { 1 })
+            .unwrap_or(0);
         flag_cell.flagged = !flag_cell.flagged;
     }
 

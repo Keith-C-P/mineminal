@@ -39,4 +39,83 @@ impl Utils {
 
         v
     }
+
+    pub fn top_right(root: Rect, width: u16, height: u16) -> Rect {
+        let [h] = Layout::horizontal([Constraint::Length(width)])
+            .flex(Flex::End)
+            .areas(root);
+
+        let [v] = Layout::vertical([Constraint::Length(height)])
+            .flex(Flex::Start)
+            .areas(h);
+
+        v
+    }
+
+    pub fn top_left(root: Rect, width: u16, height: u16) -> Rect {
+        let [h] = Layout::horizontal([Constraint::Length(width)])
+            .flex(Flex::Start)
+            .areas(root);
+
+        let [v] = Layout::vertical([Constraint::Length(height)])
+            .flex(Flex::Start)
+            .areas(h);
+
+        v
+    }
+
+    pub fn to_big_text(number: isize) -> String {
+        let mut num = number;
+        let mut big_text: [[char; 9]; 3] = [[' '; 9]; 3];
+        /* ═╠║╣╔╗╚╝╬╦╩
+        ╔═╗
+        ╠═╣
+        ╚═╝
+        */
+        let minus = "   ═══   ";
+        let map: [&str; 10] = [
+            "╔═╗║ ║╚═╝",
+            "╔╗  ║ ═╩═",
+            "╔═╗╔═╝╚═╝",
+            "╔═╗ ╠╣╚═╝",
+            "╦ ╦╚═╣  ╩",
+            "╔═╗╚═╗╚═╝",
+            "╔═╗╠═╗╚═╝",
+            "╔═╗  ║  ╩",
+            "╔═╗╠═╣╚═╝",
+            "╔═╗╚═╣╚═╝",
+        ];
+
+        for idx in (0..3).rev() {
+            let units_place: usize = (num % 10).abs().try_into().unwrap();
+            num = num / 10;
+            let offset = idx * 3;
+            for row in 0..3 {
+                for col in 0..3 {
+                    big_text[row][offset + col] =
+                        map[units_place].chars().nth(row * 3 + col).unwrap()
+                }
+            }
+        }
+
+        let mut final_text: String = String::from("");
+
+        if number < 0 {
+            let offset = if number.abs() < 10 { 3 } else { 0 };
+            for row in 0..3 {
+                for col in 0..3 {
+                    big_text[row][offset + col] = minus.chars().nth(row * 3 + col).unwrap()
+                }
+            }
+        }
+
+        for row in 0..3 {
+            for col in 0..9 {
+                final_text.push(big_text[row][col]);
+            }
+            final_text.push('\n');
+        }
+
+        final_text
+    }
 }

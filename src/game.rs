@@ -1,5 +1,5 @@
 use crate::engine::Engine;
-use crate::state::{LoseState, PlayingState, State, Transition};
+use crate::state::{LoseState, PlayingState, State, Transition, WinState};
 
 use crossterm::event::Event as CEvent;
 use ratatui::Frame;
@@ -56,9 +56,9 @@ impl Game {
                 match transition {
                     Transition::ToPlaying => self.state = Some(Box::new(PlayingState)),
                     Transition::ToPause => todo!("Not Implemented Pause"),
-                    Transition::Resume => todo!("Not Implemented Pause"),
+                    Transition::Resume => todo!("Not Implemented Resume"),
                     Transition::ToLose => self.state = Some(Box::new(LoseState)),
-                    Transition::ToWin => todo!("Not Implemented Win"),
+                    Transition::ToWin => self.state = Some(Box::new(WinState)),
                     Transition::Restart => {
                         self.ctx = Some(GameContext::new());
                         self.state = Some(Box::new(PlayingState));

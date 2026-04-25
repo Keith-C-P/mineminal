@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use crate::gameboard::{Cell, CellContent, GameBoard};
 use crate::renderer::{GameBoardWidget, PeekWidget};
 use crate::timer::Timer;
@@ -8,6 +6,7 @@ use crate::utils::Utils;
 use log::debug;
 use ratatui::Frame;
 use ratatui::layout::Rect;
+use std::fmt::Display;
 
 pub enum Signal {
     Alive,
@@ -141,11 +140,22 @@ impl Engine {
                     CellContent::Bomb => signal = Signal::Kill,
                     _ => signal = Signal::Alive,
                 }
-                self.reveal_at((x, y));
-                self.reveal_coord = None;
+                let count = self.reveal_at((x, y));
+                let total_revealed = self.gameboard.count_revealed_cells();
+                if self.gameboard.rows * self.gameboard.cols - self.gameboard.num_bombs
+                    == total_revealed
+                {
+                    debug!("Revealed {} cells ({} total)", count, total_revealed);
+                    return Signal::Win;
+                }
             }
-            None => self.reveal_coord = None,
+            None => {
+                let total_revealed = self.gameboard.count_revealed_cells();
+                debug!("Revealed {} cells ({} total)", 0, total_revealed);
+            }
         }
+
+        self.reveal_coord = None;
         signal
     }
 
@@ -208,6 +218,11 @@ impl Engine {
             return Signal::Kill;
         }
 
+        let total_revealed = self.gameboard.count_revealed_cells();
+        if self.gameboard.rows * self.gameboard.cols - self.gameboard.num_bombs == total_revealed {
+            return Signal::Win;
+        }
+
         Signal::Alive
     }
 
@@ -218,29 +233,35 @@ impl Engine {
         self.peek.is_peeking = false;
     }
 
-    fn reveal_at(&mut self, (board_x, board_y): (usize, usize)) {
+    fn reveal_at(&mut self, (board_x, board_y): (usize, usize)) -> usize {
         let click_cell = &mut self.gameboard.board[board_y][board_x];
         if !click_cell.revealed {
             match click_cell.content {
-                CellContent::Bomb => debug!("Kill Signal"), //lose
                 CellContent::Safe(0) => {
-                    self.propagate_from((board_x, board_y));
+                    let count = self.propagate_from((board_x, board_y));
+                    return count;
                 }
-                CellContent::Safe(_) => click_cell.revealed = true,
+                CellContent::Safe(_) => {
+                    click_cell.revealed = true;
+                    return 1;
+                }
+                CellContent::Bomb => return 0,
             }
         }
+        0
     }
 
-    fn propagate_from(&mut self, (x, y): (usize, usize)) {
+    fn propagate_from(&mut self, (x, y): (usize, usize)) -> usize {
         if self.gameboard.board[y][x].revealed {
-            return;
+            return 0;
         }
 
         let source_cell_content = self.gameboard.board[y][x].content;
         match source_cell_content {
-            CellContent::Bomb => return,
+            CellContent::Bomb => return 0,
             CellContent::Safe(0) => {
                 self.gameboard.board[y][x].revealed = true;
+                let mut count = 1;
                 for offset_x in -1..=1 {
                     for offset_y in -1..=1 {
                         if let (Some(nx), Some(ny)) = (
@@ -248,19 +269,22 @@ impl Engine {
                             y.checked_add_signed(offset_y),
                         ) {
                             if nx < self.gameboard.cols && ny < self.gameboard.rows {
-                                self.propagate_from((nx, ny));
+                                count += self.propagate_from((nx, ny));
                             }
                         }
                     }
                 }
+                count
             }
             CellContent::Safe(_) => {
                 self.gameboard.board[y][x].revealed = true;
+                1
             }
         }
     }
 
-    fn reveal_neighbors(&mut self, (x, y): (usize, usize)) {
+    fn reveal_neighbors(&mut self, (x, y): (usize, usize)) -> usize {
+        let mut count = 0;
         for dy in -1..=1 {
             for dx in -1..=1 {
                 if dx == 0 && dy == 0 {
@@ -278,11 +302,12 @@ impl Engine {
                             content: CellContent::Bomb,
                             ..
                         } => continue,
-                        _ => self.reveal_at((nx, ny)),
+                        _ => count += self.reveal_at((nx, ny)),
                     }
                 }
             }
         }
+        count
     }
 
     pub fn screen_to_board(
@@ -298,9 +323,5 @@ impl Engine {
             self.gameboard.rows,
             root_area,
         )
-    }
-
-    pub fn get_board_cell(&self, col: usize, row: usize) -> &Cell {
-        &self.gameboard.board[row][col]
     }
 }
