@@ -1,7 +1,5 @@
 use crate::engine::GameInfo;
-use crate::gameboard::Cell;
-use crate::gameboard::CellContent;
-use crate::gameboard::GameBoard;
+use crate::gameboard::{Cell, CellContent, CellState, GameBoard};
 use crate::utils::Utils;
 
 use ratatui::layout::Rect;
@@ -30,12 +28,16 @@ impl<'a> Widget for GameBoardWidget<'a> {
     {
         for (y, row) in self.gameboard.board.iter().enumerate() {
             for (x, cell) in row.iter().enumerate() {
-                let (symbol, style) = if cell.flagged {
-                    ("F", Style::default().bg(Color::DarkGray))
-                } else if !cell.revealed {
-                    ("▇", Style::default().bg(Color::DarkGray))
-                } else {
-                    match cell.content {
+                let (symbol, style) = match cell {
+                    Cell {
+                        state: CellState::Flagged,
+                        ..
+                    } => ("F", Style::default().bg(Color::DarkGray)),
+                    Cell {
+                        state: CellState::Unrevealed,
+                        ..
+                    } => ("▇", Style::default().bg(Color::DarkGray)),
+                    Cell { content, .. } => match content {
                         CellContent::Bomb => ("*", Style::default().bg(Color::DarkGray)),
                         CellContent::Safe(n) => {
                             let text = match n {
@@ -53,7 +55,7 @@ impl<'a> Widget for GameBoardWidget<'a> {
                             };
                             (text, Style::default().bg(Color::DarkGray))
                         }
-                    }
+                    },
                 };
                 let draw_x = area.x + x as u16;
                 let draw_y = area.y + y as u16;
@@ -109,7 +111,7 @@ impl<'a> PeekWidget<'a> {
             self.root_area,
         );
         match coords {
-            Some((x, y)) => self.gameboard.board[y][x].revealed,
+            Some((x, y)) => matches!(self.gameboard.board[y][x].state, CellState::Revealed),
             None => false,
         }
     }
@@ -123,7 +125,7 @@ impl<'a> PeekWidget<'a> {
             self.root_area,
         );
         match coords {
-            Some((x, y)) => self.gameboard.board[y][x].flagged,
+            Some((x, y)) => matches!(self.gameboard.board[y][x].state, CellState::Flagged),
             None => false,
         }
     }
@@ -172,13 +174,17 @@ impl<'a> Widget for LoseBoardWidget<'a> {
             for (x, cell) in row.iter().enumerate() {
                 //TODO implement colors and killed by
                 let (symbol, style) = match cell {
-                    Cell { flagged: true, .. } => ("F", Style::default().bg(Color::DarkGray)),
+                    Cell {
+                        state: CellState::Flagged,
+                        ..
+                    } => ("F", Style::default().bg(Color::DarkGray)),
                     Cell {
                         content: CellContent::Bomb,
                         ..
                     } => ("*", Style::default().bg(Color::DarkGray)),
                     Cell {
-                        revealed: false, ..
+                        state: CellState::Revealed,
+                        ..
                     } => ("▇", Style::default().bg(Color::DarkGray)),
                     Cell {
                         content: CellContent::Safe(number),
@@ -222,7 +228,9 @@ impl Widget for Three7SegmentWidget {
     where
         Self: Sized,
     {
-        let text = Utils::to_big_text(self.number);
-        Paragraph::new(text).render(area, buf);
+        let text = Utils::num_to_big_text(self.number);
+        Paragraph::new(text)
+            .style(Style::new().bold())
+            .render(area, buf);
     }
 }

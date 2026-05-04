@@ -1,4 +1,4 @@
-use crate::gameboard::{Cell, CellContent, GameBoard};
+use crate::gameboard::{Cell, CellContent, CellState, GameBoard};
 use crate::renderer::{GameBoardWidget, PeekWidget};
 use crate::timer::Timer;
 use crate::utils::Utils;
@@ -235,24 +235,25 @@ impl Engine {
 
     fn reveal_at(&mut self, (board_x, board_y): (usize, usize)) -> usize {
         let click_cell = &mut self.gameboard.board[board_y][board_x];
-        if !click_cell.revealed {
-            match click_cell.content {
+        match click_cell.state {
+            CellState::Unrevealed => match click_cell.content {
                 CellContent::Safe(0) => {
                     let count = self.propagate_from((board_x, board_y));
                     return count;
                 }
                 CellContent::Safe(_) => {
-                    click_cell.revealed = true;
+                    click_cell.state = CellState::Revealed;
                     return 1;
                 }
                 CellContent::Bomb => return 0,
-            }
+            },
+            _ => {}
         }
         0
     }
 
     fn propagate_from(&mut self, (x, y): (usize, usize)) -> usize {
-        if self.gameboard.board[y][x].revealed {
+        if let CellState::Revealed = self.gameboard.board[y][x].state {
             return 0;
         }
 
@@ -260,7 +261,7 @@ impl Engine {
         match source_cell_content {
             CellContent::Bomb => return 0,
             CellContent::Safe(0) => {
-                self.gameboard.board[y][x].revealed = true;
+                self.gameboard.board[y][x].state = CellState::Revealed;
                 let mut count = 1;
                 for offset_x in -1..=1 {
                     for offset_y in -1..=1 {
@@ -277,7 +278,7 @@ impl Engine {
                 count
             }
             CellContent::Safe(_) => {
-                self.gameboard.board[y][x].revealed = true;
+                self.gameboard.board[y][x].state = CellState::Revealed;
                 1
             }
         }
@@ -297,7 +298,10 @@ impl Engine {
                 );
                 if nx < self.gameboard.cols && ny < self.gameboard.rows {
                     match self.gameboard.board[ny][nx] {
-                        Cell { revealed: true, .. } => continue,
+                        Cell {
+                            state: CellState::Revealed,
+                            ..
+                        } => continue,
                         Cell {
                             content: CellContent::Bomb,
                             ..

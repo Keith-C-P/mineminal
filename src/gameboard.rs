@@ -6,11 +6,17 @@ pub enum CellContent {
     Bomb,
     Safe(u8),
 }
+
+#[derive(Clone, Copy)]
+pub enum CellState {
+    Unrevealed,
+    Revealed,
+    Flagged,
+}
 #[derive(Clone, Copy)]
 pub struct Cell {
     pub content: CellContent,
-    pub revealed: bool,
-    pub flagged: bool,
+    pub state: CellState,
 }
 
 pub struct GameBoard {
@@ -27,8 +33,7 @@ impl GameBoard {
             vec![
                 Cell {
                     content: CellContent::Safe(0),
-                    revealed: false,
-                    flagged: false,
+                    state: CellState::Unrevealed,
                 };
                 cols
             ];
@@ -105,7 +110,7 @@ impl GameBoard {
         self.board
             .iter()
             .flatten()
-            .filter(|cell| cell.revealed)
+            .filter(|cell| matches!(cell.state, CellState::Revealed))
             .count()
     }
 
@@ -172,9 +177,17 @@ impl GameBoard {
         let flag_cell = &mut self.board[board_y][board_x];
         self.num_flags = self
             .num_flags
-            .checked_add_signed(if flag_cell.flagged { -1 } else { 1 })
+            .checked_add_signed(if matches!(flag_cell.state, CellState::Flagged) {
+                -1
+            } else {
+                1
+            })
             .unwrap_or(0);
-        flag_cell.flagged = !flag_cell.flagged;
+        flag_cell.state = match flag_cell.state {
+            CellState::Flagged => CellState::Unrevealed,
+            CellState::Unrevealed => CellState::Flagged,
+            CellState::Revealed => CellState::Revealed,
+        };
     }
 
     pub fn get_peek_area(&self, board_coords: (usize, usize)) -> (usize, usize, usize, usize) {
@@ -201,7 +214,7 @@ impl GameBoard {
 
         for y in origin_y..=height {
             for x in origin_x..=width {
-                if self.board[y][x].flagged {
+                if matches!(self.board[y][x].state, CellState::Flagged) {
                     flag_count += 1;
                 }
             }
@@ -216,7 +229,7 @@ impl GameBoard {
 
         for y in origin_y..height {
             for x in origin_x..width {
-                let is_flagged = self.board[y][x].flagged;
+                let is_flagged = matches!(self.board[y][x].state, CellState::Flagged);
                 let is_bomb = match self.board[y][x].content {
                     CellContent::Bomb => true,
                     _ => false,

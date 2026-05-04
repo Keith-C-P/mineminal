@@ -1,5 +1,6 @@
 use crate::engine::Signal;
 use crate::game::GameContext;
+use crate::gameboard::CellState;
 use crate::renderer::{GameBoardWidget, InfoWidget, LoseBoardWidget, Three7SegmentWidget};
 use crate::utils::Utils;
 
@@ -45,23 +46,18 @@ impl State for PlayingState {
 
                 debug!("Revealed {} cells ({} total)", 0, total_revealed);
                 match kind {
-                    MouseEventKind::Down(MouseButton::Left) => {
-                        if cell.flagged {
-                            return Signal::Alive;
-                        }
-                        if cell.revealed {
-                            engine.start_peek(column, row, root_area);
-                        } else {
-                            engine.start_reveal(column, row, root_area);
-                        }
-                    }
+                    MouseEventKind::Down(MouseButton::Left) => match cell.state {
+                        CellState::Flagged => return Signal::Alive,
+                        CellState::Revealed => engine.start_peek(column, row, root_area),
+                        CellState::Unrevealed => engine.start_reveal(column, row, root_area),
+                    },
                     MouseEventKind::Down(MouseButton::Right) => {
-                        if !cell.revealed {
+                        if matches!(cell.state, CellState::Unrevealed) {
                             engine.toggle_flag(column, row, root_area);
                         }
                     }
                     MouseEventKind::Up(MouseButton::Left) => {
-                        let result = if cell.revealed {
+                        let result = if matches!(cell.state, CellState::Revealed) {
                             engine.end_peek()
                         } else {
                             engine.end_reveal()

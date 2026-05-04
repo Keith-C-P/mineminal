@@ -64,7 +64,7 @@ impl Utils {
         v
     }
 
-    pub fn to_big_text(number: isize) -> String {
+    pub fn num_to_big_text(number: isize) -> String {
         let mut num = number;
         let mut big_text: [[char; 9]; 3] = [[' '; 9]; 3];
         /* ═╠║╣╔╗╚╝╬╦╩
