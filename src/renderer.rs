@@ -183,7 +183,7 @@ impl<'a> Widget for LoseBoardWidget<'a> {
                         ..
                     } => ("*", Style::default().bg(Color::DarkGray)),
                     Cell {
-                        state: CellState::Revealed,
+                        state: CellState::Unrevealed,
                         ..
                     } => ("▇", Style::default().bg(Color::DarkGray)),
                     Cell {
