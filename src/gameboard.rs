@@ -1,5 +1,3 @@
-use std::iter;
-
 use log::{debug, info};
 use rand::seq::SliceRandom;
 
@@ -84,10 +82,13 @@ impl GameBoard {
                     .get_surrounding_cells((board_x, board_y))
                     .iter()
                     .filter(|cell| match cell {
-                        Some(Cell {
-                            content: CellContent::Bomb,
-                            ..
-                        }) => true,
+                        Some((
+                            _,
+                            Cell {
+                                content: CellContent::Bomb,
+                                ..
+                            },
+                        )) => true,
                         _ => false,
                     })
                     .count() as u8;
@@ -217,7 +218,7 @@ impl GameBoard {
         let flag_count = surrounding_cells
             .iter()
             .filter(|cell| match cell {
-                Some(c) => matches!(c.state, CellState::Flagged),
+                Some(c) => matches!(c.1.state, CellState::Flagged),
                 None => false,
             })
             .count();
@@ -226,10 +227,13 @@ impl GameBoard {
         flag_count as u8
     }
 
-    pub fn get_surrounding_cells(&self, board_coords: (usize, usize)) -> [Option<Cell>; 8] {
+    pub fn get_surrounding_cells(
+        &self,
+        board_coords: (usize, usize),
+    ) -> [Option<((usize, usize), Cell)>; 8] {
         let (start_x, start_y, end_x, end_y) = self.get_peek_area(board_coords);
         let (origin_x, origin_y) = board_coords;
-        let mut neighbors: [Option<Cell>; 8] = [None; 8];
+        let mut neighbors: [Option<((usize, usize), Cell)>; 8] = [None; 8];
 
         // neighbors are ordered like this:
         // 0 1 2
@@ -247,23 +251,40 @@ impl GameBoard {
                 let idx = dy * 3 + dx;
                 let neighbor_idx = if idx < 4 { idx } else { idx - 1 };
 
-                neighbors[neighbor_idx] = Some(self.board[y][x]);
+                neighbors[neighbor_idx] = Some(((x, y), self.board[y][x]));
             }
         }
         neighbors
     }
 
-    pub fn flags_match(&self, board_coords: (usize, usize)) -> bool {
+    pub fn flags_match(&self, board_coords: (usize, usize)) -> Option<[Option<(usize, usize)>; 8]> {
         let surrounding_cells = self.get_surrounding_cells(board_coords);
-        for cell in surrounding_cells {
-            if let Some(cell) = cell {
-                let is_flag = matches!(cell.state, CellState::Flagged);
-                let is_bomb = matches!(cell.content, CellContent::Bomb);
-                if is_flag && !is_bomb {
-                    return false;
+        let mut mismatched_coords: [Option<(usize, usize)>; 8] = [None; 8];
+        let mut found_mismatch = false;
+
+        for (idx, cell) in surrounding_cells.iter().enumerate() {
+            if let Some((coord, cell_data)) = cell {
+                let is_flag = matches!(cell_data.state, CellState::Flagged);
+                let is_bomb = matches!(cell_data.content, CellContent::Bomb);
+                if is_flag != is_bomb {
+                    // Flag that's not on a bomb
+                    mismatched_coords[idx] = Some(*coord);
+                    found_mismatch = true;
                 }
             }
         }
-        true
+
+        if found_mismatch {
+            Some(mismatched_coords)
+        } else {
+            None
+        }
     }
 }
+
+// AB' + A'B
+//A B out
+//0 0 0
+//0 1 1
+//1 0 1
+//1 1 0

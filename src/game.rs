@@ -1,3 +1,4 @@
+use crate::colors::Colors;
 use crate::engine::Engine;
 use crate::state::{LoseState, PlayingState, State, Transition, WinState};
 
@@ -5,20 +6,35 @@ use crossterm::event::Event as CEvent;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
+pub struct Settings {
+    pub colors: Colors,
+}
+
+impl Settings {
+    pub fn new() -> Self {
+        Self {
+            colors: Colors::from_file("settings.toml"),
+        }
+    }
+}
+
 pub struct GameContext {
     pub engine: Engine,
+    pub settings: Settings,
 }
 
 impl GameContext {
     pub fn new() -> Self {
         Self {
             engine: Engine::new(16, 16),
+            settings: Settings::new(),
         }
     }
 
     pub fn with_size(width: usize, height: usize) -> Self {
         Self {
             engine: Engine::new(width, height),
+            settings: Settings::new(),
         }
     }
 }

@@ -1,0 +1,15 @@
+[color]
+background = "#384048"
+killed_by_background = "#ee6666"
+foreground = "#485058"
+flag = "#f76161"
+bomb = "#000000"
+
+one = "#7cc7ff"
+two = "#66c266"
+three = "#ff7788"
+four = "#ee88ff"
+five = "#ddaa22"
+six = "#66cccc"
+seven = "#999999"
+eight = "#d0d8df"

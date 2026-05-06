@@ -1,9 +1,7 @@
 use crate::engine::Signal;
 use crate::game::GameContext;
 use crate::gameboard::CellState;
-use crate::renderer::{
-    GameBoardWidget, InfoWidget, LoseBoardWidget, PeekWidget, Three7SegmentWidget,
-};
+use crate::renderer::{GameBoardWidget, InfoWidget, PeekWidget, Three7SegmentWidget};
 use crate::utils::Utils;
 
 use crossterm::event::{
@@ -87,7 +85,11 @@ impl State for PlayingState {
         );
 
         frame.render_widget(
-            GameBoardWidget::new(&ctx.engine.gameboard, ctx.engine.reveal_coord),
+            GameBoardWidget::playing(
+                &ctx.engine.gameboard,
+                &ctx.settings.colors,
+                ctx.engine.reveal_coord,
+            ),
             board_area,
         );
 
@@ -165,7 +167,11 @@ impl State for LoseState {
         frame.render_widget(block, area);
         frame.render_widget(InfoWidget::new(&ctx.engine.game_info), inner);
         frame.render_widget(
-            LoseBoardWidget::new(&ctx.engine.gameboard, (0, 0)),
+            GameBoardWidget::lose(
+                &ctx.engine.gameboard,
+                &ctx.settings.colors,
+                ctx.engine.killed_by.unwrap_or([None; 8]),
+            ),
             board_area,
         );
     }
@@ -219,7 +225,7 @@ impl State for WinState {
         frame.render_widget(block, area);
         frame.render_widget(InfoWidget::new(&ctx.engine.game_info), inner);
         frame.render_widget(
-            GameBoardWidget::new(&ctx.engine.gameboard, None),
+            GameBoardWidget::win(&ctx.engine.gameboard, &ctx.settings.colors),
             board_area,
         );
     }

@@ -1,3 +1,4 @@
+mod colors;
 mod engine;
 mod game;
 mod gameboard;

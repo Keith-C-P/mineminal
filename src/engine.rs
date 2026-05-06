@@ -37,6 +37,7 @@ pub struct Engine {
     pub chord: Chord,
     pub reveal_coord: Option<(usize, usize)>,
     pub first_click: bool,
+    pub killed_by: Option<[Option<(usize, usize)>; 8]>,
 }
 
 impl Engine {
@@ -48,6 +49,7 @@ impl Engine {
             chord: Chord::new(),
             reveal_coord: None,
             first_click: false,
+            killed_by: None,
         }
     }
 
@@ -84,7 +86,7 @@ impl Engine {
         self.game_info.time.start();
     }
 
-    pub fn start_reveal(&mut self, (board_x, board_y): (usize, usize)) {
+    fn start_reveal(&mut self, (board_x, board_y): (usize, usize)) {
         self.reveal_coord = Some((board_x, board_y));
     }
 
@@ -99,6 +101,7 @@ impl Engine {
                 if let CellContent::Bomb = self.gameboard.board[y][x].content {
                     debug!("Killed by Bomb Reveal");
                     self.game_info.record_active_clicks(1);
+                    self.killed_by = Some([Some((x, y)), None, None, None, None, None, None, None]);
                     return Signal::Kill;
                 }
 
@@ -131,7 +134,7 @@ impl Engine {
         }
     }
 
-    pub fn start_chord(&mut self, (board_x, board_y): (usize, usize), frame_area: Rect) {
+    fn start_chord(&mut self, (board_x, board_y): (usize, usize), frame_area: Rect) {
         let pane = Utils::center(
             frame_area,
             self.gameboard.width as u16,
@@ -171,10 +174,13 @@ impl Engine {
             .get_surrounding_cells(self.chord.board_coord)
             .iter()
             .filter(|cell| match cell {
-                Some(Cell {
-                    state: CellState::Revealed,
-                    ..
-                }) => true,
+                Some((
+                    _,
+                    Cell {
+                        state: CellState::Revealed,
+                        ..
+                    },
+                )) => true,
                 _ => false,
             })
             .count();
@@ -203,16 +209,17 @@ impl Engine {
 
         // check if flags match
         self.game_info.record_active_chords(1);
-        if self.gameboard.flags_match(self.chord.board_coord) {
+        if let Some(coords) = self.gameboard.flags_match(self.chord.board_coord) {
+            debug!("Killed by Flags Mismatch");
+            self.killed_by = Some(coords);
+            return Signal::Kill;
+        } else {
             let count = self.reveal_neighbors(self.chord.board_coord);
             let total_revealed = self.gameboard.count_revealed_cells();
             debug!(
                 "Chord Revealed {} cell(s) ({} total)",
                 count, total_revealed
             );
-        } else {
-            debug!("Killed by Flags Mismatch");
-            return Signal::Kill;
         }
 
         // check win
