@@ -1,13 +1,14 @@
 use crate::engine::Signal;
 use crate::game::GameContext;
 use crate::gameboard::CellState;
-use crate::renderer::{GameBoardWidget, InfoWidget, LoseBoardWidget, Three7SegmentWidget};
+use crate::renderer::{
+    GameBoardWidget, InfoWidget, LoseBoardWidget, PeekWidget, Three7SegmentWidget,
+};
 use crate::utils::Utils;
 
 use crossterm::event::{
     Event as CEvent, KeyCode, KeyEvent, KeyEventKind, MouseButton, MouseEvent, MouseEventKind,
 };
-use log::debug;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders};
@@ -36,42 +37,32 @@ impl State for PlayingState {
             }) => {
                 let engine = &mut ctx.engine;
 
-                let total_revealed = engine.gameboard.count_revealed_cells();
-                let Some((bx, by)) = engine.screen_to_board(column, row, root_area) else {
-                    debug!("Revealed {} cells ({} total)", 0, total_revealed);
+                //check if click is outside board area
+                let Some((board_x, board_y)) = engine.screen_to_board(column, row, root_area)
+                else {
                     return Signal::Alive;
                 };
 
-                let cell = engine.gameboard.board[by][bx];
-
-                debug!("Revealed {} cells ({} total)", 0, total_revealed);
+                let cell = engine.gameboard.board[board_y][board_x];
                 match kind {
-                    MouseEventKind::Down(MouseButton::Left) => match cell.state {
-                        CellState::Flagged => return Signal::Alive,
-                        CellState::Revealed => engine.start_peek(column, row, root_area),
-                        CellState::Unrevealed => engine.start_reveal(column, row, root_area),
-                    },
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        engine.lmb_down(column, row, root_area)
+                    }
+
                     MouseEventKind::Down(MouseButton::Right) => {
-                        if matches!(cell.state, CellState::Unrevealed) {
+                        if !matches!(cell.state, CellState::Revealed) {
                             engine.toggle_flag(column, row, root_area);
                         }
+                        Signal::Alive
                     }
-                    MouseEventKind::Up(MouseButton::Left) => {
-                        let result = if matches!(cell.state, CellState::Revealed) {
-                            engine.end_peek()
-                        } else {
-                            engine.end_reveal()
-                        };
-                        return result;
-                    }
+                    MouseEventKind::Up(MouseButton::Left) => engine.lmb_up(column, row, root_area),
                     MouseEventKind::Drag(MouseButton::Left) => {
                         engine.cancel_peek();
                         engine.end_reveal();
-                        return Signal::Alive;
+                        Signal::Alive
                     }
-                    _ => {}
+                    _ => Signal::Alive,
                 }
-                return Signal::Alive;
             }
             CEvent::Key(KeyEvent {
                 code: KeyCode::Esc,
@@ -83,14 +74,30 @@ impl State for PlayingState {
                 kind: KeyEventKind::Press,
                 ..
             }) => return Signal::Restart,
-            _ => {}
+            _ => Signal::Alive,
         }
-        Signal::Alive
     }
 
     fn render(&self, ctx: &GameContext, frame: &mut Frame) {
-        ctx.engine.draw(frame);
         let root_area = frame.area();
+        let board_area = Utils::center(
+            root_area,
+            ctx.engine.gameboard.width as u16,
+            ctx.engine.gameboard.height as u16,
+        );
+
+        frame.render_widget(
+            GameBoardWidget::new(&ctx.engine.gameboard, ctx.engine.reveal_coord),
+            board_area,
+        );
+
+        if ctx.engine.chord.is_active {
+            frame.render_widget(
+                PeekWidget::new(root_area, &ctx.engine.gameboard),
+                ctx.engine.chord.area,
+            );
+        }
+
         let bomb_widget_area = Utils::top_left(root_area, 9 + 2, 3 + 2);
 
         let bomb_block = Block::default().borders(Borders::ALL);
@@ -151,8 +158,8 @@ impl State for LoseState {
 
         let board_area = Utils::center(
             root_area,
-            engine.gameboard.cols as u16,
-            engine.gameboard.rows as u16,
+            engine.gameboard.width as u16,
+            engine.gameboard.height as u16,
         );
 
         frame.render_widget(block, area);
@@ -205,8 +212,8 @@ impl State for WinState {
 
         let board_area = Utils::center(
             root_area,
-            engine.gameboard.cols as u16,
-            engine.gameboard.rows as u16,
+            engine.gameboard.width as u16,
+            engine.gameboard.height as u16,
         );
 
         frame.render_widget(block, area);

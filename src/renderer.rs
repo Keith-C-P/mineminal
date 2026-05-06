@@ -1,5 +1,5 @@
-use crate::engine::GameInfo;
 use crate::gameboard::{Cell, CellContent, CellState, GameBoard};
+use crate::gameinfo::GameInfo;
 use crate::utils::Utils;
 
 use ratatui::layout::Rect;
@@ -106,8 +106,8 @@ impl<'a> PeekWidget<'a> {
         let coords = Utils::screen_to_board(
             click_x,
             click_y,
-            self.gameboard.cols,
-            self.gameboard.rows,
+            self.gameboard.width,
+            self.gameboard.height,
             self.root_area,
         );
         match coords {
@@ -120,8 +120,8 @@ impl<'a> PeekWidget<'a> {
         let coords = Utils::screen_to_board(
             click_x,
             click_y,
-            self.gameboard.cols,
-            self.gameboard.rows,
+            self.gameboard.width,
+            self.gameboard.height,
             self.root_area,
         );
         match coords {

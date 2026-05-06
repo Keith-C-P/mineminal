@@ -1,6 +1,7 @@
 mod engine;
 mod game;
 mod gameboard;
+mod gameinfo;
 mod renderer;
 mod state;
 mod timer;
